@@ -1,0 +1,42 @@
+# oss-steward scheduled run. Copy to .github/workflows/ops-run.yml in your repo.
+# Required repo secrets: ANTHROPIC_API_KEY. Optionally OPS_GH_TOKEN (a fine-grained
+# PAT with issues:write) if the default GITHUB_TOKEN permissions are not enough.
+name: oss-steward
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch: {}
+concurrency:
+  group: oss-steward
+  cancel-in-progress: false
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+jobs:
+  ops-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyyaml
+      - name: Install Claude Code + oss-steward plugin
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          claude plugin install oss-steward@hetaoBackend/oss-steward || true
+      - name: Run ops batch
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.OPS_GH_TOKEN || github.token }}
+        run: |
+          claude -p "/oss-steward:ops-run" --permission-mode acceptEdits
+      - name: Commit ops state
+        run: |
+          git config user.name "oss-steward[bot]"
+          git config user.email "oss-steward@users.noreply.github.com"
+          git add .ops/
+          git diff --cached --quiet || git commit -m "ops: run $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push

@@ -1,0 +1,34 @@
+# oss-steward action policy.
+# Risk tiers are bound to ACTION TYPES (deterministic lookup) — never to event
+# content, and never decided by the LLM.
+#   low    -> executed automatically, audited with an inverse op
+#   medium -> becomes a proposal; a maintainer approves via 👍 on the digest issue
+#   high   -> always rejected; these operations stay human-only
+# Promoting an action to a lower risk tier is always a manual edit of this file.
+version: 1
+actions:
+  add-label:
+    risk: low
+    allowed-labels: [bug, enhancement, question, documentation, good-first-issue]
+  remove-label:
+    risk: low
+    allowed-labels: [bug, enhancement, question, documentation, good-first-issue]
+  draft-reply:
+    risk: medium
+  flag-duplicate:
+    risk: medium
+  draft-review-comment:
+    risk: medium
+  suggest-assignee:
+    risk: medium
+  welcome-contributor:
+    risk: medium
+  close-issue:
+    risk: high
+  merge-pr:
+    risk: high
+defaults:
+  unknown-action: reject
+proposal:
+  expire-days: 14
+  max-pending: 30
