@@ -1,0 +1,6 @@
+{
+  "name": "oss-steward",
+  "description": "Agent-managed open-source project ops: issue triage, PR assist, community replies, release reports — with a deterministic policy gate, GitHub-native human approval, and a full audit trail.",
+  "version": "0.1.0",
+  "author": { "name": "hetaoBackend" }
+}
