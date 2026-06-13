@@ -29,29 +29,40 @@ the root of the target repo's working copy.
    (`gh label list` shows them). Explain the three risk tiers and that
    promoting an action to `low` is always a manual edit of this file.
 
-3. **Install the scheduled workflow:**
+3. **Install Claude Code settings** (permissions allow-list + model config):
+   ```bash
+   mkdir -p .claude
+   cp -n "${CLAUDE_PLUGIN_ROOT}/templates/settings.json" .claude/settings.json
+   ```
+   This auto-approves the Bash/Read/Write the skills need so the scheduled run is
+   unattended. To point at a non-Anthropic endpoint (e.g. MiniMax), edit the
+   `env` block — see `${CLAUDE_PLUGIN_ROOT}/docs/MODELS.md`. Never put the API
+   key here; it is a repo secret (next step).
+
+4. **Install the scheduled workflow:**
    ```bash
    mkdir -p .github/workflows
    cp "${CLAUDE_PLUGIN_ROOT}/templates/ops-run.yml" .github/workflows/ops-run.yml
    ```
-   Remind the maintainer to add the `ANTHROPIC_API_KEY` repo secret
-   (Settings → Secrets and variables → Actions). Without it the scheduled run
-   cannot start.
+   Remind the maintainer to add the credential repo secret
+   (Settings → Secrets and variables → Actions): `ANTHROPIC_API_KEY` for the
+   official Anthropic API, or `ANTHROPIC_AUTH_TOKEN` for a third-party gateway
+   (see docs/MODELS.md). Without it the scheduled run cannot start.
 
-4. **Create the digest issue** (the human-approval surface):
+5. **Create the digest issue** (the human-approval surface):
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ops_sync.py" --ops .ops --repo <owner/repo>
    ```
    This creates the "🤖 Ops Proposals" issue and records its number in
    `.ops/digest.json`.
 
-5. **Commit everything:**
+6. **Commit everything:**
    ```bash
-   git add .ops/ .github/workflows/ops-run.yml
+   git add .ops/ .claude/settings.json .github/workflows/ops-run.yml
    git commit -m "chore: set up oss-steward"
    ```
 
-6. **Verify:** run one dry-run batch and show the user the result:
+7. **Verify:** run one dry-run batch and show the user the result:
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ops_fetch.py" --ops .ops --repo <owner/repo> --limit 5
    ```

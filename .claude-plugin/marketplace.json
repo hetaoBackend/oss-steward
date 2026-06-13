@@ -1,0 +1,14 @@
+{
+  "name": "oss-steward",
+  "owner": { "name": "hetaoBackend" },
+  "metadata": {
+    "description": "Agent-managed open-source project ops as a Claude Code plugin, with a deterministic policy gate and GitHub-native human approval."
+  },
+  "plugins": [
+    {
+      "name": "oss-steward",
+      "source": "./",
+      "description": "Agent-managed open-source project ops: issue triage, PR assist, community replies, release reports — with a deterministic policy gate, GitHub-native human approval, and a full audit trail."
+    }
+  ]
+}

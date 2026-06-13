@@ -33,7 +33,8 @@ GitHub events ──ops_fetch──▶ new events (normalized, deduped)
 ## Install
 
 ```bash
-claude plugin install oss-steward@hetaoBackend/oss-steward
+claude plugin marketplace add hetaoBackend/oss-steward
+claude plugin install oss-steward@oss-steward
 ```
 
 ## Quick start
@@ -44,10 +45,21 @@ In the target repo's working copy:
 /oss-steward:ops-setup
 ```
 
-This scaffolds `.ops/` (policy, cursors, audit), creates the **🤖 Ops
-Proposals** digest issue, and installs a scheduled GitHub Actions workflow
-(`templates/ops-run.yml`). Add the `ANTHROPIC_API_KEY` repo secret and the
-steward runs every 6 hours; or run a batch manually with `/oss-steward:ops-run`.
+This scaffolds `.ops/` (policy, cursors, audit), writes `.claude/settings.json`
+(permissions + model config), creates the **🤖 Ops Proposals** digest issue, and
+installs a scheduled GitHub Actions workflow (`templates/ops-run.yml`). Add the
+credential repo secret and the steward runs every 6 hours; or run a batch
+manually with `/oss-steward:ops-run`.
+
+## Model / provider
+
+The steward uses whatever model the `claude` CLI is configured with. Model and
+endpoint selection (non-secret) live in the target repo's `.claude/settings.json`
+`env` block; the credential is a repo secret. Works with the official Anthropic
+API or any Anthropic-compatible gateway (e.g. MiniMax) — see
+[docs/MODELS.md](docs/MODELS.md). In CI, set **one** of these repo secrets:
+`ANTHROPIC_API_KEY` (official API) or `ANTHROPIC_AUTH_TOKEN` (third-party
+gateway).
 
 ## Risk model
 

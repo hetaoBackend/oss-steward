@@ -1,6 +1,12 @@
-# oss-steward scheduled run. Copy to .github/workflows/ops-run.yml in your repo.
-# Required repo secrets: ANTHROPIC_API_KEY. Optionally OPS_GH_TOKEN (a fine-grained
-# PAT with issues:write) if the default GITHUB_TOKEN permissions are not enough.
+# oss-steward scheduled run. Copy to .github/workflows/ops-run.yml in your repo
+# (ops-setup does this for you).
+#
+# Credentials — set ONE as a repo secret, matching your endpoint (see docs/MODELS.md):
+#   ANTHROPIC_API_KEY     official Anthropic API (x-api-key)
+#   ANTHROPIC_AUTH_TOKEN  third-party Anthropic-compatible gateway (Bearer)
+# Model / endpoint selection is non-secret and lives in .claude/settings.json.
+# Optionally set OPS_GH_TOKEN (fine-grained PAT) if the default GITHUB_TOKEN scope
+# is not enough.
 name: oss-steward
 on:
   schedule:
@@ -15,7 +21,7 @@ permissions:
   pull-requests: write
 jobs:
   ops-run:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest          # non-root runner: --dangerously-skip-permissions is allowed
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -23,20 +29,28 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pyyaml
-      - name: Install Claude Code + oss-steward plugin
+      - run: npm install -g @anthropic-ai/claude-code
+      - name: Install oss-steward plugin
         run: |
-          npm install -g @anthropic-ai/claude-code
-          claude plugin install oss-steward@hetaoBackend/oss-steward || true
+          claude plugin marketplace add hetaoBackend/oss-steward
+          claude plugin install oss-steward@oss-steward
       - name: Run ops batch
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_AUTH_TOKEN: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
           GH_TOKEN: ${{ secrets.OPS_GH_TOKEN || github.token }}
         run: |
-          claude -p "/oss-steward:ops-run" --permission-mode acceptEdits
+          # Export only the credential that is actually set (avoid empty overriding).
+          if [ -z "$ANTHROPIC_API_KEY" ]; then unset ANTHROPIC_API_KEY; fi
+          if [ -z "$ANTHROPIC_AUTH_TOKEN" ]; then unset ANTHROPIC_AUTH_TOKEN; fi
+          # Hooks still run under skip-permissions, so the gh-write guard stays active;
+          # this only auto-approves the Bash/Read/Write the skills need, unattended.
+          claude -p "/oss-steward:ops-run" --dangerously-skip-permissions
       - name: Commit ops state
         run: |
           git config user.name "oss-steward[bot]"
           git config user.email "oss-steward@users.noreply.github.com"
           git add .ops/
           git diff --cached --quiet || git commit -m "ops: run $(date -u +%Y-%m-%dT%H:%MZ)"
+          git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
           git push

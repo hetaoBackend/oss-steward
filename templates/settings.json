@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": ["Bash", "Read", "Write", "Edit", "Glob", "Grep"]
+  },
+  "env": {
+    "ANTHROPIC_MODEL": "claude-sonnet-4-6",
+    "API_TIMEOUT_MS": "600000",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+  }
+}
