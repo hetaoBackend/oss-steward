@@ -39,15 +39,27 @@ the root of the target repo's working copy.
    `env` block — see `${CLAUDE_PLUGIN_ROOT}/docs/MODELS.md`. Never put the API
    key here; it is a repo secret (next step).
 
-4. **Install the scheduled workflow:**
-   ```bash
-   mkdir -p .github/workflows
-   cp "${CLAUDE_PLUGIN_ROOT}/templates/ops-run.yml" .github/workflows/ops-run.yml
-   ```
-   Remind the maintainer to add the credential repo secret
-   (Settings → Secrets and variables → Actions): `ANTHROPIC_API_KEY` for the
-   official Anthropic API, or `ANTHROPIC_AUTH_TOKEN` for a third-party gateway
-   (see docs/MODELS.md). Without it the scheduled run cannot start.
+4. **Install a runner.** Ask the maintainer how they want batches to run, then
+   install the matching runner (you can install both):
+
+   - **Local machine** (no GitHub Actions; uses their `gh`/`claude` login):
+     ```bash
+     cp "${CLAUDE_PLUGIN_ROOT}/templates/run-local.sh" .ops/run-local.sh
+     chmod +x .ops/run-local.sh
+     ```
+     Point them at `docs/LOCAL.md` for one-shot, `--interval`, cron, and launchd
+     usage. Nothing else is needed — `/oss-steward:ops-run` already works
+     interactively too.
+
+   - **GitHub Actions** (scheduled in CI):
+     ```bash
+     mkdir -p .github/workflows
+     cp "${CLAUDE_PLUGIN_ROOT}/templates/ops-run.yml" .github/workflows/ops-run.yml
+     ```
+     Remind the maintainer to add the credential repo secret
+     (Settings → Secrets and variables → Actions): `ANTHROPIC_API_KEY` for the
+     official Anthropic API, or `ANTHROPIC_AUTH_TOKEN` for a third-party gateway
+     (see docs/MODELS.md). Without it the scheduled run cannot start.
 
 5. **Create the digest issue** (the human-approval surface):
    ```bash
@@ -56,9 +68,11 @@ the root of the target repo's working copy.
    This creates the "🤖 Ops Proposals" issue and records its number in
    `.ops/digest.json`.
 
-6. **Commit everything:**
+6. **Commit everything** (`.ops/` includes `run-local.sh`; add the workflow only
+   if you installed it):
    ```bash
-   git add .ops/ .claude/settings.json .github/workflows/ops-run.yml
+   git add .ops/ .claude/settings.json
+   [ -f .github/workflows/ops-run.yml ] && git add .github/workflows/ops-run.yml
    git commit -m "chore: set up oss-steward"
    ```
 

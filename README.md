@@ -47,9 +47,21 @@ In the target repo's working copy:
 
 This scaffolds `.ops/` (policy, cursors, audit), writes `.claude/settings.json`
 (permissions + model config), creates the **🤖 Ops Proposals** digest issue, and
-installs a scheduled GitHub Actions workflow (`templates/ops-run.yml`). Add the
-credential repo secret and the steward runs every 6 hours; or run a batch
-manually with `/oss-steward:ops-run`.
+installs a runner — GitHub Actions, your local machine, or both.
+
+## Where it runs
+
+You don't need GitHub Actions. The same batch runs three ways — see
+[docs/LOCAL.md](docs/LOCAL.md):
+
+- **Interactive:** type `/oss-steward:ops-run` in Claude Code, in the repo.
+- **Local headless / scheduled:** `.ops/run-local.sh` (one-shot, `--interval`,
+  or via cron/launchd). Uses your local `gh` login and `claude` config; a
+  `.ops/lock` prevents overlapping runs.
+- **GitHub Actions:** the scheduled `templates/ops-run.yml`, every 6 hours.
+
+Approval always happens on the GitHub digest issue, so you can 👍 from anywhere
+regardless of where batches run.
 
 ## Model / provider
 
