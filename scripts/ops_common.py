@@ -7,8 +7,6 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-import yaml
-
 RISK_LOW = "low"
 RISK_MEDIUM = "medium"
 RISK_HIGH = "high"
@@ -28,8 +26,63 @@ class Policy:
     max_pending: int = 30
 
 
+def _scalar(v: str):
+    if v.startswith("[") and v.endswith("]"):
+        inner = v[1:-1].strip()
+        return [_scalar(x.strip()) for x in inner.split(",")] if inner else []
+    if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
+        return v[1:-1]
+    low = v.lower()
+    if low in ("true", "false"):
+        return low == "true"
+    if low in ("null", "~", ""):
+        return None
+    try:
+        return int(v)
+    except ValueError:
+        try:
+            return float(v)
+        except ValueError:
+            return v
+
+
+def mini_yaml_load(text: str) -> dict:
+    """Minimal YAML loader for the policy.yaml subset: nested mappings (2-space
+    indent), inline ``[a, b]`` flow lists, and scalars. Used as a fallback so the
+    scripts run on a stock Python with no PyYAML installed.
+    """
+    root: dict = {}
+    stack: list = [(-1, root)]
+    for line in text.splitlines():
+        stripped = line.lstrip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        indent = len(line) - len(stripped)
+        if "[" not in stripped:                       # trim trailing comment
+            hi = stripped.find(" #")
+            if hi != -1:
+                stripped = stripped[:hi].rstrip()
+        key, _, val = stripped.partition(":")
+        key, val = key.strip(), val.strip()
+        while indent <= stack[-1][0]:
+            stack.pop()
+        parent = stack[-1][1]
+        if val == "":
+            child: dict = {}
+            parent[key] = child
+            stack.append((indent, child))
+        else:
+            parent[key] = _scalar(val)
+    return root
+
+
 def load_policy(path: Path) -> Policy:
-    raw = yaml.safe_load(Path(path).read_text())
+    text = Path(path).read_text()
+    try:
+        import yaml  # preferred when available — full YAML compliance
+        raw = yaml.safe_load(text)
+    except ImportError:
+        raw = mini_yaml_load(text)
     actions = {}
     for name, spec in (raw.get("actions") or {}).items():
         actions[name] = ActionPolicy(
