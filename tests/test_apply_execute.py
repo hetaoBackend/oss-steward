@@ -46,6 +46,17 @@ def test_stale_when_new_comments(ops, gh):
     assert execute_proposal("Pabc12345", ops, gh)["status"] == "stale"
 
 
+def test_label_drift_does_not_stale_a_reply(ops, gh):
+    # The steward's own labeling of #7 must not invalidate a queued draft-reply.
+    gh.api_responses[("GET", "repos/acme/widget/issues/7")] = issue_resp(
+        labels=["question"], comments=0)
+    gh.api_responses[("POST", "repos/acme/widget/issues/7/comments")] = {"id": 999}
+    make_proposal(ops, preconditions={"state": "open", "labels_snapshot": [],
+                                       "comments_count": 0})
+    result = execute_proposal("Pabc12345", ops, gh)
+    assert result["status"] == "executed"
+
+
 def test_rejects_unapproved(ops, gh):
     make_proposal(ops, status="pending")
     result = execute_proposal("Pabc12345", ops, gh)

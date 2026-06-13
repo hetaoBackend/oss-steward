@@ -24,6 +24,7 @@ from ops_common import (  # noqa: E402
 
 COMMENT_ACTIONS = {"draft-reply", "flag-duplicate", "draft-review-comment",
                    "welcome-contributor"}
+LABEL_ACTIONS = {"add-label", "remove-label"}
 MAX_RETRIES = 3
 
 
@@ -141,7 +142,10 @@ def check_preconditions(action: dict, gh) -> str | None:
     issue = gh.api(f"repos/{gh.repo}/issues/{target['number']}")
     if "state" in pre and issue.get("state") != pre["state"]:
         return f"state changed to {issue.get('state')!r}"
-    if "labels_snapshot" in pre:
+    # Label drift only invalidates label actions. The steward's own labeling of an
+    # issue (a separate low-risk action in the same run) must not make a queued
+    # reply/review/assignee proposal for that issue go stale.
+    if "labels_snapshot" in pre and action["action"] in LABEL_ACTIONS:
         current = sorted(l["name"] for l in issue.get("labels", []))
         if current != sorted(pre["labels_snapshot"]):
             return "labels changed since proposal"
