@@ -67,12 +67,16 @@ def validate_params(action: dict, ap) -> str | None:
     return None
 
 
+def _dedupe_key(rec: dict) -> tuple:
+    return (rec.get("source_event"), rec.get("action"),
+            json.dumps(rec.get("target"), sort_keys=True, ensure_ascii=False))
+
+
 def already_executed(paths: OpsPaths, action: dict) -> bool:
+    key = _dedupe_key(action)
     for f in sorted(paths.audit_dir.glob("*.jsonl")):
         for rec in read_jsonl(f):
-            if (rec.get("source_event") == action.get("source_event")
-                    and rec.get("action") == action.get("action")
-                    and rec.get("status") == "executed"):
+            if rec.get("status") == "executed" and _dedupe_key(rec) == key:
                 return True
     return False
 
@@ -111,7 +115,10 @@ def route_action(action: dict, policy, paths: OpsPaths, gh, dry_run: bool = Fals
             return audit("skipped", "duplicate of an already-executed action")
         if dry_run:
             return audit("executed", "dry-run: side effect skipped")
-        extra = execute_action(action, gh)
+        try:
+            extra = execute_action(action, gh)
+        except Exception as exc:  # noqa: BLE001 — a failed write is audited, not raised
+            return audit("failed", str(exc))
         return audit("executed", None, extra)
 
     # medium risk -> proposal

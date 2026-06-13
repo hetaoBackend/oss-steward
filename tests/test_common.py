@@ -1,4 +1,16 @@
-from ops_common import load_policy, read_jsonl, append_jsonl, read_json, write_json
+from ops_common import (load_policy, read_jsonl, append_jsonl, read_json, write_json,
+                        parse_concatenated_json)
+
+
+def test_parse_concatenated_json_flattens_pages():
+    # gh api --paginate concatenates one JSON array per page with no separator.
+    two_pages = '[{"number": 1}, {"number": 2}]\n[{"number": 3}]'
+    values = parse_concatenated_json(two_pages)
+    assert values == [[{"number": 1}, {"number": 2}], [{"number": 3}]]
+
+
+def test_parse_concatenated_json_single():
+    assert parse_concatenated_json('{"a": 1}') == [{"a": 1}]
 
 
 def test_load_policy(ops):

@@ -29,13 +29,26 @@ def test_ensure_digest_creates_once(ops, gh):
     assert len(posts) == 1
 
 
-def test_render_includes_marker_and_draft():
+def test_render_fences_untrusted_draft():
     p = {"id": "P1", "action": {"action": "draft-reply",
                                 "target": {"type": "issue", "number": 7},
-                                "params": {"body": "line1\nline2"}, "reason": "r"}}
+                                "params": {"body": "hello\n```inject```\n@maintainer"},
+                                "reason": "r"}}
     body = render_proposal_comment(p)
     assert "<!-- ops-proposal:P1 -->" in body
-    assert "> line1" in body and "> line2" in body
+    assert "```text" in body
+    assert "hello" in body
+    # injected backticks neutralized → only our open+close fence survives
+    assert body.count("```") == 2
+
+
+def test_render_defangs_mentions_in_reason():
+    p = {"id": "P2", "action": {"action": "draft-reply",
+                                "target": {"type": "issue", "number": 7},
+                                "params": {}, "reason": "ping @everyone now"}}
+    body = render_proposal_comment(p)
+    assert "@everyone" not in body            # raw mention must not survive
+    assert "@​everyone" in body          # defanged (zero-width) form present
 
 
 def test_publish_attaches_comment_id(ops, gh):
@@ -98,3 +111,21 @@ def test_run_sync_executes_approved(ops, gh):
     gh.api_responses[("POST", "repos/acme/widget/issues")] = {"number": 42}
     run_sync(ops, gh, now=NOW)
     assert read_json(ops.proposals / "P1.json", {})["status"] == "executed"
+
+
+def test_collect_verdicts_survives_collaborator_404(ops, gh):
+    seed_proposal(ops, comment_id=777)
+    gh.api_responses[("GET", "repos/acme/widget/issues/comments/777/reactions")] = [
+        {"content": "+1", "user": {"login": "ghost"}},
+    ]
+    base = gh.api
+
+    def maybe_raise(endpoint, method="GET", fields=None, paginate=False):
+        if "collaborators/ghost/permission" in endpoint:
+            raise RuntimeError("HTTP 404")  # gh raises on non-collaborator lookups
+        return base(endpoint, method, fields, paginate)
+
+    gh.api = maybe_raise
+    policy = load_policy(ops.policy)
+    collect_verdicts(ops, gh, policy, NOW)  # must not raise
+    assert read_json(ops.proposals / "P1.json", {})["status"] == "pending"

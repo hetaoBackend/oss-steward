@@ -48,3 +48,24 @@ def test_fetch_respects_limit(ops, gh):
     events, max_updated = fetch_events(ops, gh, limit=1)
     assert len(events) == 1
     assert max_updated == "2026-06-12T10:00:00Z"  # cursor must not skip unprocessed items
+
+
+def test_fetch_excludes_digest_issue(ops, gh):
+    gh.api_responses[ENDPOINT] = RAW
+    events, _ = fetch_events(ops, gh, digest_number=1)
+    assert [e["number"] for e in events] == [2]  # issue #1 is the digest → skipped
+
+
+def test_fetch_does_not_split_timestamp_group(ops, gh):
+    same_ts = [
+        {**RAW[0], "number": 10, "updated_at": "2026-06-12T10:00:00Z"},
+        {**RAW[0], "number": 11, "updated_at": "2026-06-12T10:00:00Z"},
+        {"number": 12, "title": "t", "body": "b", "state": "open",
+         "user": {"login": "z"}, "labels": [], "comments": 0,
+         "html_url": "u", "updated_at": "2026-06-12T12:00:00Z"},
+    ]
+    gh.api_responses[ENDPOINT] = same_ts
+    events, max_updated = fetch_events(ops, gh, limit=1)
+    # limit=1 but both same-second siblings emitted; cursor stops at that boundary
+    assert [e["number"] for e in events] == [10, 11]
+    assert max_updated == "2026-06-12T10:00:00Z"

@@ -33,6 +33,17 @@ def ensure_digest(paths: OpsPaths, gh) -> int:
     return resp["number"]
 
 
+def _fence_safe(text: str) -> str:
+    # Neutralize code-fence breakouts so untrusted draft text stays inside the block.
+    return text.replace("```", "ʼʼʼ")
+
+
+def _one_line(text: str) -> str:
+    # Reason is agent-authored but may quote untrusted text: collapse to one line
+    # and defang @mentions and fence markers so it can't ping users or break layout.
+    return text.replace("\n", " ").replace("```", "ʼʼʼ").replace("@", "@​")
+
+
 def render_proposal_comment(p: dict) -> str:
     a = p["action"]
     params = a.get("params") or {}
@@ -40,10 +51,14 @@ def render_proposal_comment(p: dict) -> str:
              f"### `{p['id']}` — `{a['action']}` on "
              f"{a['target'].get('type', 'issue')} #{a['target'].get('number')}",
              "",
-             f"**Reason:** {a.get('reason', '')}"]
+             f"**Reason:** {_one_line(a.get('reason', ''))}"]
     if params.get("body"):
-        quoted = params["body"].replace("\n", "\n> ")
-        lines += ["", "**Draft:**", "", f"> {quoted}"]
+        # Render the draft inside a code fence: @mentions don't notify and HTML
+        # comments / markdown are inert there, so attacker-influenced draft text
+        # can't ping maintainers, forge proposal markers, or self-inject when the
+        # next ops-run reads this thread.
+        lines += ["", "**Draft (preview — not yet posted):**", "",
+                  "```text", _fence_safe(params["body"]), "```"]
     if params.get("labels"):
         lines += ["", f"**Labels:** {', '.join(params['labels'])}"]
     lines += ["", "React 👍 to approve, 👎 to reject."]
@@ -64,8 +79,11 @@ def publish_new_proposals(paths: OpsPaths, gh, digest_number: int,
 
 def _reactor_has_write(gh, login: str, cache: dict) -> bool:
     if login not in cache:
-        resp = gh.api(f"repos/{gh.repo}/collaborators/{login}/permission")
-        cache[login] = resp.get("permission") in WRITE_PERMS
+        try:
+            resp = gh.api(f"repos/{gh.repo}/collaborators/{login}/permission")
+            cache[login] = resp.get("permission") in WRITE_PERMS
+        except Exception:  # noqa: BLE001 — 404 for non-collaborators must not abort sync
+            cache[login] = False
     return cache[login]
 
 

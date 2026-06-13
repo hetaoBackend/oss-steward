@@ -121,6 +121,25 @@ def write_json(path: Path, obj) -> None:
     p.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + "\n")
 
 
+def parse_concatenated_json(text: str) -> list:
+    """Parse a stream of back-to-back JSON values.
+
+    `gh api --paginate` emits one JSON document per page with no separator, so a
+    paginated array endpoint yields ``[...][...]`` which ``json.loads`` cannot
+    handle. This walks the stream value by value.
+    """
+    decoder = json.JSONDecoder()
+    idx, n, out = 0, len(text), []
+    while idx < n:
+        while idx < n and text[idx].isspace():
+            idx += 1
+        if idx >= n:
+            break
+        obj, idx = decoder.raw_decode(text, idx)
+        out.append(obj)
+    return out
+
+
 class Gh:
     """Thin wrapper over the gh CLI. All GitHub access goes through here."""
 
@@ -135,7 +154,14 @@ class Gh:
         for k, v in (fields or {}).items():
             cmd += ["-f", f"{k}={v}"]
         out = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
-        return json.loads(out) if out.strip() else {}
+        if not out.strip():
+            return [] if paginate else {}
+        if paginate:
+            combined: list = []
+            for value in parse_concatenated_json(out):
+                combined.extend(value if isinstance(value, list) else [value])
+            return combined
+        return json.loads(out)
 
     def run(self, args: list[str]) -> str:
         cmd = ["gh"] + list(args) + ["--repo", self.repo]

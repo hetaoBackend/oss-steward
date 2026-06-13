@@ -37,7 +37,7 @@ def normalize_issue(raw: dict) -> dict:
     }
 
 
-def fetch_events(paths: OpsPaths, gh, limit: int = 50):
+def fetch_events(paths: OpsPaths, gh, limit: int = 50, digest_number: int | None = None):
     cursor = read_json(paths.cursor, {})
     since = cursor.get("issues")
     endpoint = f"repos/{gh.repo}/issues?state=all&sort=updated&direction=asc&per_page=100"
@@ -49,12 +49,18 @@ def fetch_events(paths: OpsPaths, gh, limit: int = 50):
     max_updated = since
     for raw in raw_items:
         ev = normalize_issue(raw)
-        if ev["id"] not in processed:
-            events.append(ev)
-        if max_updated is None or ev["updated_at"] > max_updated:
-            max_updated = ev["updated_at"]
-        if len(events) >= limit:
+        if digest_number is not None and ev["number"] == digest_number:
+            continue  # never triage our own approval surface
+        if ev["id"] in processed:
+            continue
+        # Soft limit: never split a same-timestamp group. GitHub `since` is
+        # exclusive, so advancing the cursor mid-second would drop the siblings
+        # we didn't emit. Stopping only at a timestamp boundary keeps the cursor
+        # safe and loses nothing.
+        if events and len(events) >= limit and ev["updated_at"] != events[-1]["updated_at"]:
             break
+        events.append(ev)
+        max_updated = ev["updated_at"]
     return events, max_updated
 
 
@@ -67,7 +73,9 @@ def main() -> None:
     paths = OpsPaths(Path(args.ops))
     paths.ensure()
     gh = Gh(args.repo)
-    events, max_updated = fetch_events(paths, gh, limit=args.limit)
+    digest_number = read_json(paths.digest, {}).get("number")
+    events, max_updated = fetch_events(paths, gh, limit=args.limit,
+                                       digest_number=digest_number)
     for ev in events:
         print(json.dumps(ev, ensure_ascii=False))
         append_jsonl(paths.processed, {"id": ev["id"], "seen_at": ev["updated_at"]})

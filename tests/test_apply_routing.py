@@ -84,6 +84,28 @@ def test_idempotent_low_risk(ops, gh):
     assert len([c for c in gh.calls if c[0] == "run"]) == 1
 
 
+def test_low_risk_failure_is_audited_not_raised(ops, gh):
+    policy = load_policy(ops.policy)
+
+    def boom(args):
+        raise RuntimeError("gh exploded")
+
+    gh.run = boom
+    result = route_action(make_action(), policy, ops, gh)
+    assert result["status"] == "failed"
+    assert "exploded" in result["detail"]
+    assert audit_records(ops)[-1]["status"] == "failed"
+
+
+def test_idempotency_distinguishes_target(ops, gh):
+    policy = load_policy(ops.policy)
+    route_action(make_action(target={"type": "issue", "number": 1}), policy, ops, gh)
+    # same source_event + action but a different target must NOT be deduped away
+    result = route_action(make_action(target={"type": "issue", "number": 2}), policy, ops, gh)
+    assert result["status"] == "executed"
+    assert len([c for c in gh.calls if c[0] == "run"]) == 2
+
+
 def test_max_pending_blocks_new_proposals(ops, gh):
     policy = load_policy(ops.policy)
     policy.max_pending = 2
